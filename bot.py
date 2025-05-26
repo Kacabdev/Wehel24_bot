@@ -7,12 +7,12 @@ import time
 from flask import Flask
 import threading
 
-# ===== Setup ===== #
+# ===== setting up the programm ===== #
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN, parse_mode="MarkdownV2")
 logging.basicConfig(level=logging.INFO)
 
-# ===== Flask Server (Required for Render) ===== #
+# ===== Flask Server (This is the requirement of render) ===== #
 app = Flask(__name__)
 
 @app.route('/')
