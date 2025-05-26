@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import logging
 import time
+from flask import Flask
 
 # ===== SETUP ===== #
 load_dotenv()
@@ -104,3 +105,20 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"🔴 Crash detected: {e}")
             time.sleep(10)  # Prevent rapid restart loops
+
+
+
+
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "Bot is running!", 200
+
+if __name__ == "__main__":
+    # Start bot in background thread
+    import threading
+    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    
+    # Start Flask server (required for Render)
+    app.run(host='0.0.0.0', port=8000)
