@@ -2,21 +2,24 @@ import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 import random
 import os
-from dotenv import load_dotenv
 import logging
 import time
 from flask import Flask
+import threading
 
-# ===== SETUP ===== #
-load_dotenv()
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("Missing Telegram bot token in .env file")
-
+# ===== Setup ===== #
+TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN, parse_mode="MarkdownV2")
-logging.basicConfig(filename='bot.log', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
-# ===== ADVICE LIBRARY ===== #
+# ===== Flask Server (Required for Render) ===== #
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "✅ LifeBoost Bot is running!", 200
+
+# ===== Advice Library ===== #
 ADVICE_LIBRARY = {
     "🚀 Productivity": [
         r"*2\-minute rule*: If a task takes \<2 minutes\, do it NOW",
@@ -55,20 +58,23 @@ ADVICE_LIBRARY = {
     ]
 }
 
-# ===== KEYBOARDS ===== #
+# ===== Keyboard ===== #
 def create_main_keyboard():
     markup = ReplyKeyboardMarkup(
-        row_width=2, resize_keyboard=True, one_time_keyboard=False)
+        row_width=2, 
+        resize_keyboard=True, 
+        one_time_keyboard=False
+    )
     buttons = [KeyboardButton(category) for category in ADVICE_LIBRARY.keys()]
     markup.add(*buttons)
     return markup
 
-# ===== MESSAGE HANDLERS ===== #
-@bot.message_handler(commands=['start', 'advice'])
+# ===== Message Handlers ===== #
+@bot.message_handler(commands=['start', 'help', 'advice'])
 def send_welcome(message):
     welcome_msg = r"""
-*🌟 Welcome to LifeBoost Bot\!*
-Tap a category below for instant advice\:
+*🌟 Welcome to LifeBoost Bot\!* 
+Get instant life advice in these categories\:
 """
     bot.send_message(
         message.chat.id,
@@ -82,11 +88,10 @@ def send_advice(message):
         category = message.text
         advice = random.choice(ADVICE_LIBRARY[category])
         bot.send_message(message.chat.id, advice)
-        logging.info(f"Sent advice to {message.from_user.id}: {category}")
+        logging.info(f"Sent {category} advice to {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error: {e}")
-        bot.send_message(
-            message.chat.id, "⚠️ Couldn't fetch advice. Try again later.")
+        bot.reply_to(message, "⚠️ Couldn't fetch advice. Try again later.")
 
 @bot.message_handler(func=lambda msg: True)
 def handle_unknown(message):
@@ -96,29 +101,20 @@ def handle_unknown(message):
         reply_markup=create_main_keyboard()
     )
 
-# ===== DEPLOYMENT-READY LAUNCH ===== #
+# ===== Deployment Setup ===== #
 if __name__ == "__main__":
-    print("🟢 Bot started successfully!")
-    while True:  # Auto-restart on crash
-        try:
-            bot.infinity_polling()
-        except Exception as e:
-            print(f"🔴 Crash detected: {e}")
-            time.sleep(10)  # Prevent rapid restart loops
-
-
-
-
-app = Flask(__name__)
-
-@app.route('/')
-def health_check():
-    return "Bot is running!", 200
-
-if __name__ == "__main__":
+    # Clean previous connections
+    bot.remove_webhook()
+    time.sleep(1)
+    
     # Start bot in background thread
-    import threading
-    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    bot_thread = threading.Thread(
+        target=bot.infinity_polling,
+        daemon=True
+    )
+    bot_thread.start()
+    logging.info("🤖 Bot started in background thread")
     
     # Start Flask server (required for Render)
+    logging.info("🌐 Starting Flask server on port 8000")
     app.run(host='0.0.0.0', port=8000)
